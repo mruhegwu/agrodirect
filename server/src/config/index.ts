@@ -3,7 +3,11 @@ dotenv.config();
 
 export const config = {
   port: parseInt(process.env.PORT || '5000', 10),
-  jwtSecret: process.env.JWT_SECRET || 'agrodirect-super-secret-jwt-key-2026-production',
+  jwtSecret: (() => {
+    const secret = process.env.JWT_SECRET;
+    if (!secret || secret.length < 32) throw new Error('JWT_SECRET must be set to at least 32 characters');
+    return secret;
+  })(),
   jwtExpiresIn: '7d',
   nodeEnv: process.env.NODE_ENV || 'development',
   platformDefaults: {
