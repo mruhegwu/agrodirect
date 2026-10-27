@@ -35,7 +35,10 @@ router.post('/verify', authenticate, async (req: AuthRequest, res: Response, nex
       return res.status(400).json({ success: false, message: 'Payment reference is required' });
     }
 
-    const result = await PaymentService.verifyPayment(reference, simulate_success !== false);
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(503).json({ success: false, message: 'Live payment verification is not configured' });
+    }
+    const result = await PaymentService.verifyPayment(reference, simulate_success === true, req.user!.id);
     res.json(result);
   } catch (err) {
     next(err);
@@ -47,6 +50,9 @@ router.post('/webhook/:provider', (req, res, next) => {
   try {
     const provider = req.params.provider.toUpperCase() as any;
     const signature = (req.headers['x-paystack-signature'] || req.headers['verif-hash'] || '') as string;
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(503).json({ success: false, message: 'Live payment webhooks are not configured' });
+    }
     const result = PaymentService.handleWebhook(provider, signature, req.body);
     res.json(result);
   } catch (err) {
