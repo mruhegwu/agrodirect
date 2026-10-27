@@ -21,6 +21,10 @@ export class AuthService {
     const password_hash = await bcrypt.hash(data.password, salt);
     const id = generateUUID();
     const now = new Date().toISOString();
+    const permittedRoles: UserRole[] = ['CUSTOMER', 'FARMER', 'LOGISTICS_PROVIDER'];
+    if (data.role && !permittedRoles.includes(data.role)) {
+      throw new Error('Requested registration role is not permitted');
+    }
     const role: UserRole = data.role || 'CUSTOMER';
 
     queryHelpers.execute(
