@@ -25,6 +25,7 @@ export class PaymentService {
   }): Promise<PaymentInitResult> {
     const order = queryHelpers.getOne<Order>('SELECT * FROM orders WHERE id = ?', [params.order_id]);
     if (!order) throw new Error('Order not found');
+    if (order.customer_id !== params.customer_id) throw new Error('Order does not belong to authenticated customer');
     if (order.status !== 'PENDING_PAYMENT') {
       throw new Error(`Order cannot be paid in current status: ${order.status}`);
     }
@@ -79,9 +80,10 @@ export class PaymentService {
   }
 
   // Server-side verification (Idempotent)
-  static async verifyPayment(reference: string, simulationSuccess: boolean = true): Promise<{ success: boolean; message: string; payment: Payment }> {
+  static async verifyPayment(reference: string, simulationSuccess: boolean = false, customerId?: string): Promise<{ success: boolean; message: string; payment: Payment }> {
     const payment = queryHelpers.getOne<Payment>('SELECT * FROM payments WHERE provider_reference = ?', [reference]);
     if (!payment) throw new Error('Payment reference not found');
+    if (customerId && payment.customer_id !== customerId) throw new Error('Payment does not belong to authenticated customer');
 
     if (payment.status === 'SUCCESS') {
       return { success: true, message: 'Payment has already been successfully verified', payment };
@@ -153,10 +155,13 @@ export class PaymentService {
   // Webhook handler with signature check
   static handleWebhook(provider: PaymentProvider, signature: string, payload: any) {
     // Verify signature logic
-    const secret = process.env[`${provider}_SECRET_KEY`] || 'test_secret_key';
+    const secret = process.env[`${provider}_SECRET_KEY`];
+    if (!secret) throw new Error('Webhook secret is not configured');
     const computedSig = crypto.createHmac('sha512', secret).update(JSON.stringify(payload)).digest('hex');
 
-    // In production we compare computedSig === signature
+    if (!signature || signature.length !== computedSig.length || !crypto.timingSafeEqual(Buffer.from(computedSig), Buffer.from(signature))) {
+      throw new Error('Invalid webhook signature');
+    }
     const reference = payload.data?.reference || payload.reference;
     if (reference) {
       return this.verifyPayment(reference, true);
