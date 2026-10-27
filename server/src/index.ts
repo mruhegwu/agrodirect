@@ -25,7 +25,7 @@ import notificationRoutes from './routes/notificationRoutes';
 const app = express();
 
 // Middlewares
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({ origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()) : process.env.NODE_ENV !== 'production', credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -63,7 +63,9 @@ app.use(errorHandler);
 async function startServer() {
   try {
     initDatabase();
-    await runSeed();
+    if (process.env.NODE_ENV !== 'production' && process.env.SEED_DEMO_DATA === 'true') {
+      await runSeed();
+    }
 
     app.listen(config.port, () => {
       console.log(`🚀 AgroDirect Backend API is running on http://localhost:${config.port}`);
